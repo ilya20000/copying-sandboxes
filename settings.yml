@@ -1,0 +1,38 @@
+# Задаем name_container, название папки для нового контейнера в /var/lib/machines/новое название
+# name_container - не более 15 символов. Первые 11 букв из названия будут учавтствовать в имени виртуального сетевого интерфейса (ip a) Поэтому они должны быть уникальными относительно других созданных контейнеров. Например stroylandiyaweb и stroylandiyaloc будут конфликтовать по виртуальным соединениям, так как для обоих будет создавться сетевое подключение с имененм vb-stroylandiy
+name_container: website
+
+# Указываем домен для нового контейнера
+domian: stroylandiya.website
+domian_name: stroylandiya
+domian_hight: website
+
+# Папка где храниться образ с файлами контейнера, который будет скопирован в новый контейнер. Обязательно нужен слэш / в конце
+source_dir: /srv/site-backups/pesoktesttk/
+
+# Указать домен который был в копируемом контейнере, который будет заменен на домен нового контейнера
+source_domian_name: pesoktest
+source_domian_hight: tk
+
+# Указываем размер lvm и группу где его разместить.
+# Предварительно проверить свободное место в группе lvm командой vgs только после этого указывать vg_name.
+vg_name: vg_ssd
+lvm_size: 200g
+
+# Указываем вынешний ip для нового контейнера. Найти можно в https://wiki.eurostil.ru/doku.php/site:sandbox
+extern_ip: 94.26.
+extern_mask: 255.255
+gateway: 94.2
+
+# Указываем локальный ip брать по порядку из https://wiki.eurostil.ru/doku.php/site:sandbox
+internal_ip: 192.168.5.8
+internal_mask: 255.255.255.0
+
+# Пароль к базе mysql от пользователя userstroylandiya для нового контейнера добавить в тимпас, потом сюда.
+db_userstroylandiya_pass: obURvL23dY8Yp
+
+root_pass: obURvL23dY
+ronin_pass: cwWzFDxOMW
+
+login_http_auth: login
+pass_http_auth: gT9qg

@@ -1,0 +1,157 @@
+# Копирование происходит локально в рамках одного гипервизора. Между гипервизором НЕ копирует.
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# Получает из файла host.txt
+# Могут быть указаны гипервизоры ds05 или ds06
+- hosts: ds05
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# PREDIFINED VARS:
+  vars:
+    - total_steps: 8
+
+  vars_files:
+    - settings.yml
+
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# Говорим что все tasks будут выполняться от sudo
+  become: yes
+  become_method: sudo
+
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# TASKS:
+  tasks:
+
+    - name: (1 / {{ total_steps }}) Проверка существования дирректории /var/lib/machines/{{ name_container }}
+      stat:
+        path: /var/lib/machines/{{ name_container }}
+      register: check_dir
+      become: yes
+      become_method: sudo
+      changed_when: false
+
+
+    - debug:
+        msg: "(1.6 / {{ total_steps }}) Уже есть дирректория /var/lib/machines/{{ name_container }}"
+      when: check_dir.stat.exists and check_dir.stat.isdir
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (1.7 / {{ total_steps }}) Проверяю пуста ли дирректория /var/lib/machines/{{ name_container }}
+      shell: ls -L /var/lib/machines/{{ name_container }} | wc -l
+      register: check_ls_dir
+      become: yes
+      become_method: sudo
+      changed_when: false
+      when: check_dir.stat.exists and check_dir.stat.isdir
+
+
+    - debug:
+        msg: "(1.8 / {{ total_steps }}) Дирректория /var/lib/machines/{{ name_container }} Чем то занята! {{ check_ls_dir.stdout }}"
+      when: check_dir.stat.exists and check_ls_dir.stdout != "0"
+    #- meta: end_play
+    #  when: check_dir.stat.exists and check_ls_dir.stdout != "0"
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (1.9 / {{ total_steps }}) Создаем дирректорию /var/lib/machines/{{ name_container }}
+      file:
+        path: "/var/lib/machines/{{ name_container }}"
+        state: directory
+        mode: "0755"
+      when: check_dir.stat.exists == False
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (2 / {{ total_steps }}) Проверяем есть ли LVM {{ name_container }} размером {{lvm_size}}
+      command: "ls /dev/{{ vg_name }}/{{ name_container }}"
+      register: check_lvm
+      become: yes
+      become_method: sudo
+      changed_when: false
+      ignore_errors: yes
+
+
+    - debug:
+        msg: "Нет LVM тома. Дебаг Информация-check_lvm= {{ check_lvm }}"
+      when: "'cannot access' in check_lvm.stderr"
+
+
+    - debug:
+        msg: "Есть LVM том /dev/{{ vg_name }}/{{ name_container }} Дебаг Информация-check_lvm= {{ check_lvm }}"
+      #when: "'cannot access' not in check_lvm.stderr"
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (3 / {{ total_steps }}) Создаем LVM размером {{lvm_size}}
+      lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ name_container }}"
+        size: "{{ lvm_size }}"
+      become: yes
+      become_method: sudo
+      when: "'cannot access' in check_lvm.stderr"
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (4 / {{ total_steps }}) Форматируем /dev/{{ vg_name }}/{{ name_container }} в xfs
+      filesystem:
+        fstype: xfs
+        dev: /dev/{{ vg_name }}/{{ name_container }}
+      become: yes
+      become_method: sudo
+      when: "'cannot access' in check_lvm.stderr"
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (5 / {{ total_steps }}) Монтируем lv в /var/lib/machines/{{ name_container }}
+      mount:
+        path: /var/lib/machines/{{ name_container }}
+        src: /dev/{{ vg_name }}/{{ name_container }}
+        fstype: xfs
+        state: mounted
+      become: yes
+      become_method: sudo
+      register: mount_lvm
+
+
+    - debug:
+        msg: "LVM том /dev/{{ vg_name }}/{{ name_container }} Не смонтирован {{ check_lvm }}"
+      when: mount_lvm.failed == true
+    - meta: end_play
+      when: mount_lvm.failed == true
+
+
+    - name: (6 / {{ total_steps }} ) Копируем из "{{source_dir}}" в /var/lib/machines/{{ name_container }}
+      #synchronize:
+      #  src: "{{ source_dir }}"
+      #  dest: "/var/lib/machines/{{ name_container }}"
+      #delegate_to: ds06
+      command: "cp -a {{ source_dir }}. /var/lib/machines/{{ name_container }}"
+      become: yes
+      become_method: sudo
+      when: mount_lvm.failed == false
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (7 / {{ total_steps }}) Обновим конфиги network
+      template:
+        src: templates/etc/{{item}}.tpl
+        dest: "/var/lib/machines/{{ name_container }}/etc/{{item}}"
+        owner: root
+        group: root
+        mode: u=rw,g=r,o=r
+      with_items:
+        - sysconfig/network-scripts/ifcfg-host0
+        - sysconfig/network-scripts/ifcfg-mv-eno1
+        - sysconfig/network
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (8 / {{ total_steps }}) Start, enabled контейнер {{ name_container }}
+      systemd:
+        name: "systemd-nspawn@{{ name_container }}.service"
+        enabled: yes
+        state: started

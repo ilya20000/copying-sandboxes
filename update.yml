@@ -1,0 +1,101 @@
+# Копирование происходит локально в рамках одного гипервизора. Между гипервизором НЕ копирует.
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# Получает из файла host.txt
+# Могут быть указаны гипервизоры ds05 или ds06
+- hosts: ds05
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# PREDIFINED VARS:
+  vars:
+    - total_steps: 7
+
+  vars_files:
+    - settings.yml
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# Говорим что все tasks будут выполняться от sudo
+  become: yes
+  become_method: sudo
+
+
+#_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+# TASKS:
+  tasks:
+
+    - name: (1 / {{ total_steps }}) Копируем update.sh скрипт обновления работающего контейнера.
+      template:
+        src: update.sh
+        dest: "/var/lib/machines/{{ name_container }}/root/update.sh"
+        owner: root
+        group: root
+        mode: u=rwx,g=rx,o=rx
+      become: yes
+      become_method: sudo
+      changed_when: false
+
+
+    - name: (2 / {{ total_steps }}) Выполняем скрипт обновления в контейнере.
+      command: "systemd-run --machine={{ name_container }} /root/update.sh"
+      become: yes
+      become_method: sudo
+      changed_when: false
+
+    - name: Ждем выполнения update.sh
+      pause:
+        minutes: 4
+
+    - name: Удаляем update.sh
+      file:
+        state: absent
+        path: /var/lib/machines/{{ name_container }}/root/update.sh
+      become: yes
+      become_method: sudo
+
+
+    - name: (3 / {{ total_steps }}) | Change constant in PHP files bitrix/php_interface/dbconn.php
+      lineinfile:
+        path: "/var/lib/machines/{{ name_container }}/srv/www/stroylandiya.ru/conf/stroylandiya_php_configs/proxysql/dbconn.php"
+        regexp: "{{item.regex}}"
+        line: "{{item.new}}"
+      with_items:
+        - { regex: '^\$DBPassword', new: "$DBPassword = \"{{db_userstroylandiya_pass}}\";"}
+        - { regex: '^\$DBHost', new: '$DBHost = "localhost";'}
+    #_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (4 / {{ total_steps }}) | Change constant in PHP files bitrix/.settings.php
+      lineinfile:
+        path: "/var/lib/machines/{{ name_container }}/srv/www/stroylandiya.ru/conf/stroylandiya_php_configs/proxysql/.settings.php"
+        regexp: "{{item.regex}}"
+        line: "{{item.new}}"
+      with_items:
+        - { regex: "'password' =>", new: "                            'password' => '{{db_userstroylandiya_pass}}',"}
+        - { regex: "'host' =>", new: "                           'host' => 'localhost',"}
+    #_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (5 / {{ total_steps }}) | Change constant in PHP files bitrix/php_interface/dbconn.php
+      lineinfile:
+        path: "/var/lib/machines/{{ name_container }}/srv/www/stroylandiya.ru/conf/stroylandiya_php_configs/standalone/dbconn.php"
+        regexp: "{{item.regex}}"
+        line: "{{item.new}}"
+      with_items:
+        - { regex: '^\$DBPassword', new: "$DBPassword = \"{{db_userstroylandiya_pass}}\";"}
+        - { regex: '^\$DBHost', new: '$DBHost = "localhost";'}
+    #_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (6 / {{ total_steps }}) | Change constant in PHP files bitrix/.settings.php
+      lineinfile:
+        path: "/var/lib/machines/{{ name_container }}/srv/www/stroylandiya.ru/conf/stroylandiya_php_configs/standalone/.settings.php"
+        regexp: "{{item.regex}}"
+        line: "{{item.new}}"
+      with_items:
+        - { regex: "'password' =>", new: "                            'password' => '{{db_userstroylandiya_pass}}',"}
+        - { regex: "'host' =>", new: "                           'host' => 'localhost',"}
+    #_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_
+
+    - name: (7 / {{ total_steps }}) | Change constant in PHP files local/php_interface/constants.php
+      lineinfile:
+        path: "/var/lib/machines/{{ name_container }}/srv/www/stroylandiya.ru/htdocs/local/php_interface/constants.php"
+        regexp: '^define \("DOMEN_NAME"'
+        line: 'define ("DOMEN_NAME", "{{domian}}");'
+    #_,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,__,.-*^*-.,_

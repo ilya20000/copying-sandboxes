@@ -1,0 +1,49 @@
+# This file is a template, and might need editing before it works on your project.
+# This file is a template demonstrating the `script` keyword.
+# Learn more about this keyword here: https://docs.gitlab.com/ee/ci/yaml/README.html#script
+
+# After committing this template, visit CI/CD > Jobs to see the script output.
+
+image:
+  name: willhallonline/ansible:2.9-centos-8
+
+cache:
+  key: copyingsandbox
+  untracked: true
+  policy: pull-push
+
+stages:
+  - test1
+  - test2
+  - createsandbox
+  - update
+
+variables:
+  PLAYBOOK: copying.yml
+  ANSIBLE_HOST_KEY_CHECKING: "False"  
+  GIT_STRATEGY: clone
+  
+test1_playbook:
+  stage: test1
+  script:
+    - ansible --version
+    - ansible-lint -p ${PLAYBOOK}  
+
+test2_playbook:
+  stage: test2
+  script:
+    - ansible --version
+    - ansible-lint -p update.yml  
+
+createsandbox_playbook:
+  stage: createsandbox    
+  script:    
+    - ansible-playbook ${PLAYBOOK} -i host.txt --diff --extra-vars "ansible_python_interpreter=/usr/bin/python"
+  when: manual
+
+
+update_playbook:
+  stage: update    
+  script:    
+    - ansible-playbook update.yml -i host.txt --diff --extra-vars "ansible_python_interpreter=/usr/bin/python"
+  when: manual

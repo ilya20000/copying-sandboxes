@@ -3,8 +3,8 @@
 name_container: website
 
 # Указываем домен для нового контейнера
-domian: stroylandiya.website
-domian_name: stroylandiya
+domian: st
+domian_name: st
 domian_hight: website
 
 # Папка где храниться образ с файлами контейнера, который будет скопирован в новый контейнер. Обязательно нужен слэш / в конце
